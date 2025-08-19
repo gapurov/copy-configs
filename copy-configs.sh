@@ -8,9 +8,7 @@
 #   Missing items are skipped. Works with any directory structure.
 #
 # REQUIREMENTS
-#   - bash 4.0+ (required for associative arrays and improved features)
 #   - git, rsync
-#   - timeout (optional, for operation timeouts)
 #
 # USAGE
 #   echo "path/to/target" | copy-configs [OPTIONS]
