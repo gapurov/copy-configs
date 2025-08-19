@@ -29,7 +29,12 @@ readonly REQUIRED_DEPS=(git rsync)
 readonly DEFAULT_COPY_PATTERNS=(
     ".env*"
     "CLAUDE.md"
+    "GEMINI.md"
+    "AGENTS.md"
+    ".claude/"
     ".cursor/"
+    ".augment/"
+    ".clinerules/"
     ".vscode/settings.json"
 )
 
