@@ -31,6 +31,7 @@ readonly DEFAULT_COPY_PATTERNS=(
     "CLAUDE.md"
     "GEMINI.md"
     "AGENTS.md"
+    "AGENT.md"
     ".claude/"
     ".cursor/"
     ".augment/"
