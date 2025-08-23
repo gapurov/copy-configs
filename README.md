@@ -4,6 +4,8 @@ Automatically copy untracked files (`.env*`, AI configs, IDE settings) to new gi
 
 **Built on [gwq](https://github.com/d-kuro/gwq) - the powerful Git Worktree Manager.**
 
+Now with native `gwq addx` integration!
+
 ## What is gwq?
 
 [gwq](https://github.com/d-kuro/gwq) is a CLI tool for efficiently managing Git worktrees with a fuzzy finder interface. Key features:
@@ -14,7 +16,7 @@ Automatically copy untracked files (`.env*`, AI configs, IDE settings) to new gi
 - **Status Dashboard** - Monitor all worktrees' activity at a glance
 - **Smart Directory Organization** - URL-based hierarchy preventing naming conflicts
 
-**copy-configs enhances gwq** by solving the untracked file problem - the missing piece for seamless worktree workflows.
+**copy-configs enhances gwq** by solving the untracked file problem - the missing piece for seamless worktree workflows. Use `gwq addx` for natural integration!
 
 ## Why copy-configs?
 
@@ -54,37 +56,45 @@ This script will:
 
 ### Manual Installation
 
-1. Install [gwq](https://github.com/d-kuro/gwq) (required for `gwq-addx`)
+1. Install [gwq](https://github.com/d-kuro/gwq) (required for `gwq addx`)
 2. Clone or download the scripts to your desired location
 3. Make them executable:
    ```bash
-   chmod +x copy-configs.sh gwq-addx.sh
+   chmod +x copy-configs.sh gwqx
    ```
 
 ## Usage
 
-### gwq-addx (Recommended)
+### gwq addx (Native Integration)
 
-`gwq-addx` is a complete wrapper around `gwq add` that supports all gwq functionality plus automatic file copying.
+**New!** copy-configs now integrates natively with gwq as the `addx` subcommand.
 
-Replace `gwq add` with `gwq-addx` for enhanced worktree creation:
+Simply use `gwq addx` instead of `gwq add` for enhanced worktree creation:
 
 ```bash
 # Instead of: gwq add -b feature/auth
-gwq-addx -b feature/auth    # Creates worktree + copies files automatically
+gwq addx -b feature/auth    # Creates worktree + copies files automatically
 
 # All gwq add options work exactly the same:
-gwq-addx -i                 # Interactive branch selection
-gwq-addx main               # From existing branch  
-gwq-addx origin/develop     # From remote branch
-gwq-addx -b feat --config ./custom.copyconfigs  # Custom file patterns
+gwq addx -i                 # Interactive branch selection
+gwq addx main               # From existing branch  
+gwq addx origin/develop     # From remote branch
+gwq addx -b feat --config ./custom.copyconfigs  # Custom file patterns
 ```
 
 **The workflow improvement:**
 - **Before**: `gwq add` → `cd worktree` → manually copy `.env*`, AI configs, IDE settings → start coding
-- **After**: `gwq-addx` → `cd worktree` → start coding immediately
+- **After**: `gwq addx` → `cd worktree` → start coding immediately
 
-#### gwq-addx Options
+### Alternative Usage
+
+You can also use gwqx directly:
+
+```bash
+gwqx -b feature/auth        # Direct gwqx command
+```
+
+#### gwq addx Options
 
 **Copy-configs specific options:**
 - `--config, -c FILE` - Custom copy rules file
@@ -98,14 +108,14 @@ gwq-addx -b feat --config ./custom.copyconfigs  # Custom file patterns
 
 #### Drop-in Replacement
 
-Replace `gwq add` with `gwq-addx` in your workflow:
+Replace `gwq add` with `gwq addx` in your workflow:
 
 | Old Command | New Command | Result |
 |-------------|-------------|---------|
-| `gwq add -b feature/auth` | `gwq-addx -b feature/auth` | Same worktree + auto-copied files |
-| `gwq add main` | `gwq-addx main` | Same worktree + auto-copied files |
-| `gwq add -i` | `gwq-addx -i` | Same fuzzy selection + auto-copied files |
-| `gwq add origin/develop` | `gwq-addx origin/develop` | Same remote branch + auto-copied files |
+| `gwq add -b feature/auth` | `gwq addx -b feature/auth` | Same worktree + auto-copied files |
+| `gwq add main` | `gwq addx main` | Same worktree + auto-copied files |
+| `gwq add -i` | `gwq addx -i` | Same fuzzy selection + auto-copied files |
+| `gwq add origin/develop` | `gwq addx origin/develop` | Same remote branch + auto-copied files |
 
 ### Standalone Usage
 
@@ -148,9 +158,13 @@ custom-config.json
 ## Examples
 
 ```bash
-# Enhanced worktree workflow
-gwq-addx -b feature/auth --verbose
-gwq-addx --config ./deploy.copyconfigs -b staging
+# Enhanced worktree workflow with native integration
+gwq addx -b feature/auth --verbose
+gwq addx --config ./deploy.copyconfigs -b staging
+
+# Direct gwqx usage
+gwqx -b feature/auth --verbose
+gwqx --config ./deploy.copyconfigs -b staging
 
 # Standalone copying  
 copy-configs.sh --dry-run --target /tmp/project
@@ -160,7 +174,7 @@ copy-configs.sh --conflict backup -t /path1 -t /path2
 ## Requirements
 
 - `git`, `rsync` 
-- For `gwq-addx`: `gwq`, `jq`
+- For `gwq addx`: `gwq`, `jq`
 
 ## License
 

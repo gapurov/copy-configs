@@ -28,7 +28,7 @@ readonly DEFAULT_CONFIGS_DIR="$HOME/.local/bin/copy-configs"
 readonly SYSTEM_BIN_DIR="/usr/local/bin"
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0 verbose_mode=0
+declare -g use_color=1 is_tty=0 verbose_mode=0 dry_run=0
 declare -g bin_dir="" configs_dir=""
 declare -g os_type="" arch_type=""
 
@@ -154,7 +154,7 @@ setup_directories() {
 
 # ---------- gwq installation ----------
 get_latest_gwq_release() {
-    log info "Fetching latest gwq release information..."
+    log info "Fetching latest gwq release information..." >&2
     
     local api_url="https://api.github.com/repos/$GWQ_REPO/releases/latest"
     local release_data
@@ -171,7 +171,7 @@ get_latest_gwq_release() {
         exit 1
     fi
 
-    log verb "Latest gwq version: $version"
+    log verb "Latest gwq version: $version" >&2
 
     # Convert OS and arch to the format used by gwq releases
     local release_os release_arch
@@ -194,15 +194,20 @@ get_latest_gwq_release() {
     if ! download_url="$(echo "$release_data" | grep "browser_download_url.*$asset_name" | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')"; then
         log error "Could not find download URL for $asset_name"
         log error "Available assets:"
-        echo "$release_data" | grep '"name"' | grep '\.tar\.gz' | sed 's/.*"name": *"\([^"]*\)".*/\1/' | sed 's/^/  /'
+        echo "$release_data" | grep '"name"' | grep '\.tar\.gz' | sed 's/.*"name": *"\([^"]*\)".*/\1/' | sed 's/^/  /' >&2
         exit 1
     fi
 
-    log verb "Download URL: $download_url"
+    log verb "Download URL: $download_url" >&2
     echo "$download_url"
 }
 
 download_and_install_gwq() {
+    if [[ $dry_run -eq 1 ]]; then
+        log info "DRY RUN: Would download and install gwq"
+        return 0
+    fi
+    
     local download_url
     download_url="$(get_latest_gwq_release)"
     
@@ -250,6 +255,11 @@ download_and_install_gwq() {
 
 # ---------- copy-configs installation ----------
 download_and_install_configs() {
+    if [[ $dry_run -eq 1 ]]; then
+        log info "DRY RUN: Would download and install copy-configs scripts"
+        return 0
+    fi
+    
     log info "Downloading copy-configs scripts..."
     
     local temp_dir
@@ -292,14 +302,13 @@ download_and_install_configs() {
         exit 1
     fi
     
-    if [[ -f "$repo_dir/gwq-addx.sh" ]]; then
-        if ! cp "$repo_dir/gwq-addx.sh" "$configs_dir/gwq-addx.sh"; then
-            log error "Failed to copy gwq-addx.sh"
+    if [[ -f "$repo_dir/gwqx" ]]; then
+        if ! cp "$repo_dir/gwqx" "$configs_dir/gwqx"; then
+            log error "Failed to copy gwqx"
             exit 1
         fi
     else
-        log error "gwq-addx.sh not found in repository"
-        exit 1
+        log warn "gwqx not found in repository, skipping"
     fi
 
     # Copy additional files if they exist
@@ -310,21 +319,16 @@ download_and_install_configs() {
     done
 
     # Make scripts executable
-    chmod +x "$configs_dir"/*.sh 2>/dev/null || true
-
-    # Create symlinks in bin directory for easy access
-    log info "Creating symlinks for easy access..."
-    
-    if ! ln -sf "$configs_dir/copy-configs.sh" "$bin_dir/copy-configs"; then
-        log warn "Failed to create copy-configs symlink"
-    fi
-    
-    if ! ln -sf "$configs_dir/gwq-addx.sh" "$bin_dir/gwq-addx"; then
-        log warn "Failed to create gwq-addx symlink"
+    if [[ $dry_run -eq 0 ]]; then
+        chmod +x "$configs_dir"/*.sh 2>/dev/null || true
+        chmod +x "$configs_dir/gwqx" 2>/dev/null || true
+    else
+        log info "DRY RUN: Would make scripts executable"
     fi
 
     log ok "copy-configs scripts installed successfully"
 }
+
 
 # ---------- path verification ----------
 check_path() {
@@ -334,6 +338,91 @@ check_path() {
     else
         log warn "Directory $bin_dir is not in PATH"
         return 1
+    fi
+}
+
+# ---------- gwq function installation ----------
+install_gwq_function() {
+    log info "Installing gwq function..."
+
+    # Check if gwqx exists in the configs directory
+    local gwqx_path="$configs_dir/gwqx"
+    if [[ ! -f "$gwqx_path" ]]; then
+        log warn "gwqx not found at $gwqx_path, skipping gwq function installation"
+        return 0
+    fi
+
+    # Detect the user's shell and config file
+    local user_shell="${SHELL:-/bin/sh}"
+    local config_file=""
+
+    case "$user_shell" in
+        */zsh)
+            config_file="$HOME/.zshrc"
+            ;;
+        */bash)
+            # Check for .bashrc first, then .bash_profile
+            if [[ -f "$HOME/.bashrc" ]]; then
+                config_file="$HOME/.bashrc"
+            elif [[ -f "$HOME/.bash_profile" ]]; then
+                config_file="$HOME/.bash_profile"
+            else
+                config_file="$HOME/.bashrc"  # Create .bashrc if neither exists
+            fi
+            ;;
+        */fish)
+            config_file="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            config_file="$HOME/.profile"
+            ;;
+    esac
+
+    log verb "Target shell: $user_shell, config file: $config_file"
+
+    # Check if the function already exists
+    if [[ -f "$config_file" ]] && grep -q "^gwq()" "$config_file" 2>/dev/null; then
+        log ok "gwq function already exists in $config_file"
+        return 0
+    fi
+
+    # Create config file directory if it doesn't exist
+    local config_dir
+    config_dir="$(dirname "$config_file")"
+    if [[ ! -d "$config_dir" ]]; then
+        if [[ $dry_run -eq 0 ]]; then
+            mkdir -p "$config_dir"
+            log verb "Created directory: $config_dir"
+        else
+            log info "DRY RUN: Would create directory: $config_dir"
+        fi
+    fi
+
+    # Generate the function content
+    local gwq_function="
+# gwq function - intercepts 'addx' subcommand for enhanced functionality
+gwq() {
+    if [[ \"\${1:-}\" == \"addx\" ]]; then
+        # Call gwqx for the addx subcommand
+        shift
+        \"$gwqx_path\" \"\$@\"
+    else
+        # Pass through to native gwq for all other commands
+        /usr/local/bin/gwq \"\$@\"
+    fi
+}
+"
+
+    # Add the function to the config file
+    if [[ $dry_run -eq 0 ]]; then
+        if echo "$gwq_function" >> "$config_file"; then
+            log ok "Added gwq function to $config_file"
+        else
+            log error "Failed to write gwq function to $config_file"
+            return 1
+        fi
+    else
+        log info "DRY RUN: Would add gwq function to $config_file"
     fi
 }
 
@@ -355,16 +444,32 @@ show_instructions() {
 
     log info "Verify installation:"
     echo "  gwq --help"
-    echo "  copy-configs --help"
-    echo "  gwq-addx --help"
     echo
 
-    log info "Usage examples:"
-    echo "  # Create worktree with file copying"
-    echo "  gwq-addx -b feature/new-feature"
+    log info "The gwq function has been automatically added to your shell configuration."
+    log info "After restarting your shell, you can use:"
+    echo "  gwq addx -b feature/new-feature"
+    echo
+    
+    log info "For manual installation, add this function to your shell config:"
+    echo
+    echo "# gwq function - intercepts 'addx' subcommand for enhanced functionality"
+    echo "gwq() {"
+    echo "    if [[ \"\${1:-}\" == \"addx\" ]]; then"
+    echo "        # Call gwqx for the addx subcommand"
+    echo "        shift"
+    echo "        \"$configs_dir/gwqx\" \"\$@\""
+    echo "    else"
+    echo "        # Pass through to native gwq for all other commands"
+    echo "        /usr/local/bin/gwq \"\$@\""
+    echo "    fi"
+    echo "}"
     echo
     echo "  # Copy configs to existing directory"
     echo "  echo '/path/to/target' | copy-configs"
+    echo
+    echo "  # Direct usage (requires full path)"
+    echo "  echo '/path/to/target' | $configs_dir/copy-configs.sh"
     echo
 
     log info "Configuration:"
@@ -377,7 +482,11 @@ show_instructions() {
 
 # ---------- main execution ----------
 main() {
-    log info "Starting copy-configs installation (version $SCRIPT_VERSION)"
+    if [[ $dry_run -eq 1 ]]; then
+        log info "Starting copy-configs installation (DRY RUN) (version $SCRIPT_VERSION)"
+    else
+        log info "Starting copy-configs installation (version $SCRIPT_VERSION)"
+    fi
     
     detect_os
     detect_arch
@@ -386,6 +495,7 @@ main() {
     
     download_and_install_gwq
     download_and_install_configs
+    install_gwq_function
     
     show_instructions
 }
@@ -395,6 +505,9 @@ while [[ $# -gt 0 ]]; do
     case "${1:-}" in
         -v|--verbose)
             verbose_mode=1
+            shift ;;
+        --dry-run)
+            dry_run=1
             shift ;;
         --no-color)
             use_color=0
@@ -410,14 +523,14 @@ USAGE:
 
 OPTIONS:
   -v, --verbose     Enable verbose output
+  --dry-run         Show what would be done without executing
   --no-color        Disable colored output
   -h, --help        Show this help
 
 This script will:
 1. Download and install the latest gwq binary
 2. Download and install copy-configs scripts
-3. Set up symlinks for easy access
-4. Provide PATH configuration instructions
+3. Provide PATH configuration instructions
 
 EOF
             exit 0 ;;

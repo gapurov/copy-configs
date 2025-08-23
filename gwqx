@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# gwq-addx — gwq add with post-create file copy
-# Version: 1.0.0
+# gwqx — Enhanced gwq with post-create file copying
+# Version: 2.0.0
 #
 # SUMMARY
-#   Wrapper around `gwq add` that creates worktrees and then copies files
-#   using the standalone copy-configs.sh utility. Provides the familiar
-#   gwq-addx interface while leveraging the independent copy-configs tool.
+#   Multi-purpose gwq enhancement tool:
+#   1. Acts as gwq wrapper when called as 'gwq', delegating to real gwq
+#   2. Provides 'addx' subcommand for worktree creation with file copying
+#   3. Can be called directly as 'gwqx' for the addx functionality
 #
 # REQUIREMENTS
 #   - bash 4.0+ (required for associative arrays)
@@ -13,15 +14,17 @@
 #   - copy-configs.sh (standalone copy utility)
 #
 # USAGE
-#   gwq-addx [OPTIONS] [--] [gwq add args...]
+#   gwq addx [OPTIONS] [--] [gwq add args...]
+#   gwqx [OPTIONS] [--] [gwq add args...]
 #
 # AUTHOR
 #   Enhanced with Claude Code assistance for performance and reliability
 
 set -euo pipefail
 
+
 # ---------- constants ----------
-readonly SCRIPT_VERSION="1.0.0"
+readonly SCRIPT_VERSION="2.0.0"
 readonly REQUIRED_DEPS=(git gwq jq)
 readonly COPY_CONFIGS_SCRIPT="$(dirname "$0")/copy-configs.sh"
 
@@ -37,7 +40,7 @@ declare -ga COPY_ARGS=()
 log() {
     local level="$1"; shift
     local prefix icon color output_fd=1
-    
+
     case "$level" in
         info)  prefix='>>' icon='>>'; color='36'; output_fd=2 ;;
         ok)    prefix='✓'  icon='✓';  color='32'; output_fd=2 ;;
@@ -48,7 +51,7 @@ log() {
         dry)   [[ $dry_run_mode -eq 1 ]] || return 0; prefix='DRY' icon='DRY'; color='96'; output_fd=2 ;;
         *) log error "Unknown log level: $level"; return 1 ;;
     esac
-    
+
     if [[ $use_color -eq 1 && $is_tty -eq 1 ]]; then
         printf "\033[${color}m${icon}\033[0m %s\n" "$*" >&$output_fd
     else
@@ -87,7 +90,11 @@ check_dependencies
 # ---------- help ----------
 print_help() {
     cat <<'EOF'
-Usage: gwq-addx [OPTIONS] [--] [gwq add args...]
+Usage: gwq addx [OPTIONS] [--] [gwq add args...]
+   or: gwqx [OPTIONS] [--] [gwq add args...]
+
+Creates git worktrees using 'gwq add' and then copies configuration files
+into the new worktree directories using copy-configs.sh.
 
 Copy-related OPTIONS (passed to copy-configs.sh):
   --config, -c FILE     Path to rules file (overrides default search)
@@ -102,16 +109,16 @@ All other arguments are passed to 'gwq add'.
 
 EXAMPLES:
   # Create worktree with new branch and copy files
-  gwq-addx -b feature/auth
+  gwq addx -b feature/auth
 
   # Create from existing branch
-  gwq-addx main
+  gwq addx main
 
   # With copy configuration
-  gwq-addx --config ./custom.copyconfigs -b feature/api
+  gwq addx --config ./custom.copyconfigs -b feature/api
 
   # Dry run to see what would be copied
-  gwq-addx --dry-run -b feature/test
+  gwq addx --dry-run -b feature/test
 
 NOTES:
   - Uses copy-configs.sh for file copying (must be in same directory)
@@ -182,7 +189,13 @@ fi
 
 # ---------- worktree detection ----------
 get_worktree_paths() {
-    gwq list --json 2>/dev/null | jq -r '.[].path' 2>/dev/null | LC_ALL=C sort -u
+    local json_output
+    if json_output=$(gwq list --json 2>/dev/null); then
+        echo "$json_output" | jq -r '.[].path' 2>/dev/null | LC_ALL=C sort -u
+    else
+        log warn "Failed to get worktree paths from gwq list --json"
+        return 1
+    fi
 }
 
 get_new_worktrees() {
@@ -190,7 +203,10 @@ get_new_worktrees() {
     local -a before_list=() after_list=() new_list=()
 
     # Snapshot before
-    mapfile -t before_list < <(get_worktree_paths)
+    if ! mapfile -t before_list < <(get_worktree_paths); then
+        log error "Failed to get initial worktree list"
+        exit 1
+    fi
 
     local path
     for path in "${before_list[@]}"; do
@@ -206,15 +222,19 @@ get_new_worktrees() {
         return 0
     else
         local gwq_output
-        gwq_output="$(gwq add "${GWQ_ARGS[@]}" 2>&1)" || {
+        if gwq_output="$(GWQX_WRAPPED=1 gwq add "${GWQ_ARGS[@]}" 2>&1)"; then
+            log verb "gwq add output: $gwq_output"
+        else
             log error "gwq add failed: $gwq_output"
             exit 1
-        }
-        log verb "gwq add output: $gwq_output"
+        fi
     fi
 
     # Snapshot after and find new paths
-    mapfile -t after_list < <(get_worktree_paths)
+    if ! mapfile -t after_list < <(get_worktree_paths); then
+        log error "Failed to get updated worktree list"
+        exit 1
+    fi
 
     for path in "${after_list[@]}"; do
         if [[ -z ${before_set[$path]:-} ]]; then
@@ -222,11 +242,16 @@ get_new_worktrees() {
         fi
     done
 
-    printf '%s\n' "${new_list[@]}"
+    if [[ ${#new_list[@]} -gt 0 ]]; then
+        printf '%s\n' "${new_list[@]}"
+    fi
 }
 
 # ---------- main execution ----------
-new_paths="$(get_new_worktrees)"
+if ! new_paths="$(get_new_worktrees)"; then
+    log error "Failed to determine new worktree paths"
+    exit 1
+fi
 
 log debug "New worktree paths: '$new_paths'"
 
@@ -236,12 +261,15 @@ if [[ -z $new_paths ]]; then
 fi
 
 # Count actual number of worktree paths
-path_count=$(echo "$new_paths" | wc -l)
+path_count=$(echo "$new_paths" | wc -l | tr -d ' ')
 [[ -z $new_paths ]] && path_count=0
 
 log info "Copying files into $path_count new worktree(s)"
 
 # Use copy-configs.sh to copy files
-printf '%s\n' "$new_paths" | "$COPY_CONFIGS_SCRIPT" "${COPY_ARGS[@]}"
-
-log ok "Done."
+if printf '%s\n' "$new_paths" | "$COPY_CONFIGS_SCRIPT" "${COPY_ARGS[@]}"; then
+    log ok "Done."
+else
+    log error "File copying failed"
+    exit 1
+fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-install.sh — Test script for install.sh
+# install.test.sh — Test script for install.sh
 # Version: 1.0.0
 #
 # SUMMARY
@@ -7,7 +7,7 @@
 #   without affecting the actual system.
 #
 # USAGE
-#   ./test-install.sh
+#   ./install.test.sh
 #
 # AUTHOR
 #   Enhanced with Claude Code assistance
@@ -310,9 +310,9 @@ test_dry_run() {
     
     # Test that script can parse arguments without executing
     local script_output
-    if script_output="$(echo "$test_configs_dir" | timeout 30 bash "$INSTALL_SCRIPT" --verbose 2>&1)" || [[ $? -eq 124 ]]; then
-        # Check if script started properly (even if it timed out)
-        if [[ "$script_output" == *"Starting copy-configs installation"* ]]; then
+    if script_output="$(echo "$test_configs_dir" | timeout 30 bash "$INSTALL_SCRIPT" --dry-run --verbose 2>&1)"; then
+        # Check if script started properly
+        if [[ "$script_output" == *"Starting copy-configs installation (DRY RUN)"* ]]; then
             log pass "Script dry run started successfully"
             return 0
         else
@@ -322,6 +322,35 @@ test_dry_run() {
         fi
     else
         log fail "Script dry run failed: $script_output"
+        ((test_failures++))
+        return 1
+    fi
+}
+
+test_manual_instructions() {
+    log test "Testing manual installation instructions"
+    
+    # Create a test installation directory
+    local test_configs_dir="$TEST_DIR/test-configs"
+    mkdir -p "$test_configs_dir"
+    
+    # Run dry run and capture output
+    local script_output
+    if script_output="$(echo "$test_configs_dir" | bash "$INSTALL_SCRIPT" --dry-run 2>&1)"; then
+        # Check if manual installation instructions are present
+        if [[ "$script_output" == *"For manual installation, add this function to your shell config:"* ]] && \
+           [[ "$script_output" == *"gwq() {"* ]] && \
+           [[ "$script_output" == *"\"$test_configs_dir/gwqx\""* ]]; then
+            log pass "Manual installation instructions included with correct path"
+            return 0
+        else
+            log fail "Manual installation instructions missing or incorrect"
+            echo "Expected to find manual instructions with path: $test_configs_dir/gwqx"
+            ((test_failures++))
+            return 1
+        fi
+    else
+        log fail "Failed to run script for manual instructions test: $script_output"
         ((test_failures++))
         return 1
     fi
@@ -343,6 +372,7 @@ main() {
     test_gwq_release_parsing
     test_repo_access
     test_dry_run
+    test_manual_instructions
     
     echo
     if [[ $test_failures -eq 0 ]]; then
@@ -368,7 +398,7 @@ while [[ $# -gt 0 ]]; do
 Installation script test suite
 
 USAGE:
-  ./test-install.sh [OPTIONS]
+  ./install.test.sh [OPTIONS]
 
 OPTIONS:
   -v, --verbose     Enable verbose output
@@ -384,6 +414,7 @@ This script tests:
 6. Release information parsing
 7. Repository accessibility
 8. Dry run functionality
+9. Manual installation instructions
 
 EOF
             exit 0 ;;
