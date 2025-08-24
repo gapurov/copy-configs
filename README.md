@@ -11,7 +11,7 @@ Now with native `gwq addx` integration!
 [gwq](https://github.com/d-kuro/gwq) is a CLI tool for efficiently managing Git worktrees with a fuzzy finder interface. Key features:
 
 - **Fuzzy Finder Interface** - Intuitive branch and worktree selection
-- **Global Worktree Management** - Access all worktrees across repositories  
+- **Global Worktree Management** - Access all worktrees across repositories
 - **Parallel AI Development** - Enable multiple AI agents to work simultaneously
 - **Status Dashboard** - Monitor all worktrees' activity at a glance
 - **Smart Directory Organization** - URL-based hierarchy preventing naming conflicts
@@ -34,8 +34,9 @@ This forces you to manually copy these files every time you create a worktree, d
 ### Default Files Copied
 
 copy-configs automatically copies these files when no custom config is specified:
+
 - `.env*` - Environment variables
-- `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` - AI assistant configurations  
+- `CLAUDE.md`, `GEMINI.md`, `AGENTS.md` - AI assistant configurations
 - `.claude/`, `.clinerules/` - AI-specific directories
 - `.cursor/`, `.augment/` - Modern IDE configurations
 - `.vscode/settings.json` - VS Code settings
@@ -49,10 +50,10 @@ curl -fsSL https://raw.githubusercontent.com/gapurov/copy-configs/refs/heads/mai
 ```
 
 This script will:
-- Download and install the latest `gwq` binary for your platform
-- Download and install the `copy-configs` scripts
-- Set up convenient symlinks for easy access
-- Provide PATH configuration instructions
+
+- Download and install the latest `gwq` binary to your chosen bin directory
+- Download and install the `copy-configs` scripts to your chosen scripts directory
+- Add a `gwq` function to your shell config (e.g., `~/.zshrc`) to handle `addx`
 
 ### Manual Installation
 
@@ -77,26 +78,29 @@ gwq addx -b feature/auth    # Creates worktree + copies files automatically
 
 # All gwq add options work exactly the same:
 gwq addx -i                 # Interactive branch selection
-gwq addx main               # From existing branch  
+gwq addx main               # From existing branch
 gwq addx origin/develop     # From remote branch
 gwq addx -b feat --config ./custom.copyconfigs  # Custom file patterns
 ```
 
 **The workflow improvement:**
+
 - **Before**: `gwq add` → `cd worktree` → manually copy `.env*`, AI configs, IDE settings → start coding
 - **After**: `gwq addx` → `cd worktree` → start coding immediately
 
 ### Alternative Usage
 
-You can also use gwqx directly:
+You can also use `gwqx` directly (if it's on your PATH) or call it via its full path:
 
 ```bash
-gwqx -b feature/auth        # Direct gwqx command
+gwqx -b feature/auth                # If gwqx is on your PATH
+/path/to/copy-configs/gwqx -b feature/auth  # Using full path
 ```
 
 #### gwq addx Options
 
 **Copy-configs specific options:**
+
 - `--config, -c FILE` - Custom copy rules file
 - `--conflict, -C MODE` - File conflict handling: `skip`|`overwrite`|`backup` (default: skip)
 - `--verbose, -v` - Verbose copy operation output
@@ -110,12 +114,12 @@ gwqx -b feature/auth        # Direct gwqx command
 
 Replace `gwq add` with `gwq addx` in your workflow:
 
-| Old Command | New Command | Result |
-|-------------|-------------|---------|
-| `gwq add -b feature/auth` | `gwq addx -b feature/auth` | Same worktree + auto-copied files |
-| `gwq add main` | `gwq addx main` | Same worktree + auto-copied files |
-| `gwq add -i` | `gwq addx -i` | Same fuzzy selection + auto-copied files |
-| `gwq add origin/develop` | `gwq addx origin/develop` | Same remote branch + auto-copied files |
+| Old Command               | New Command                | Result                                   |
+| ------------------------- | -------------------------- | ---------------------------------------- |
+| `gwq add -b feature/auth` | `gwq addx -b feature/auth` | Same worktree + auto-copied files        |
+| `gwq add main`            | `gwq addx main`            | Same worktree + auto-copied files        |
+| `gwq add -i`              | `gwq addx -i`              | Same fuzzy selection + auto-copied files |
+| `gwq add origin/develop`  | `gwq addx origin/develop`  | Same remote branch + auto-copied files   |
 
 ### Standalone Usage
 
@@ -137,7 +141,7 @@ copy-configs.sh < target_paths.txt
 - `--conflict, -C MODE` - Conflict handling: `skip`|`overwrite`|`backup` (default: skip)
 - `--target, -t PATH` - Explicit target path (can be repeated)
 - `--verbose, -v` - Enable verbose output
-- `--debug` - Enable debug output  
+- `--debug` - Enable debug output
 - `--dry-run, -n` - Show what would be done without executing
 - `--no-color` - Disable ANSI colors
 - `--help, -h` - Show help
@@ -166,14 +170,14 @@ gwq addx --config ./deploy.copyconfigs -b staging
 gwqx -b feature/auth --verbose
 gwqx --config ./deploy.copyconfigs -b staging
 
-# Standalone copying  
+# Standalone copying
 copy-configs.sh --dry-run --target /tmp/project
 copy-configs.sh --conflict backup -t /path1 -t /path2
 ```
 
 ## Requirements
 
-- `git`, `rsync` 
+- `git`, `rsync`
 - For `gwq addx`: `gwq`, `jq`
 
 ## License
