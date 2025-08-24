@@ -128,42 +128,39 @@ check_dependencies() {
 
 # ---------- directory setup ----------
 setup_directories() {
-    # Try to use system directory for gwq (preferred)
-    if [[ -w "$SYSTEM_BIN_DIR" ]] 2>/dev/null; then
-        bin_dir="$SYSTEM_BIN_DIR"
-        use_sudo=0
-        log info "Using system directory: $bin_dir"
+    # Ask user where to install gwq
+    log info "Where should gwq be installed?"
+    if [[ $is_tty -eq 1 ]]; then
+        read -p "Enter path (default: $SYSTEM_BIN_DIR): " bin_input
+        bin_dir="${bin_input:-$SYSTEM_BIN_DIR}"
     else
-        # Ask if user wants to use sudo for system installation
-        log info "gwq installation requires system directory access (/usr/local/bin)"
+        # Non-interactive mode, use default user directory to avoid sudo
+        bin_dir="$DEFAULT_BIN_DIR"
+        log info "Non-interactive mode, using: $bin_dir"
+    fi
+    
+    # Check if chosen directory requires sudo
+    if [[ -w "$bin_dir" ]] 2>/dev/null || [[ -w "$(dirname "$bin_dir")" ]] 2>/dev/null; then
+        # Can write without sudo
+        use_sudo=0
+        log info "Using directory: $bin_dir"
+        mkdir -p "$bin_dir" 2>/dev/null || true
+    else
+        # Directory requires elevated permissions
+        log info "Directory $bin_dir requires elevated permissions"
         if [[ $is_tty -eq 1 ]]; then
-            read -p "Use sudo to install gwq to $SYSTEM_BIN_DIR? [Y/n]: " -n 1 -r sudo_choice
-            echo
-            if [[ $sudo_choice =~ ^[Nn]$ ]]; then
-                bin_dir="$DEFAULT_BIN_DIR"
-                use_sudo=0
-                log info "Using user directory: $bin_dir"
-                mkdir -p "$bin_dir"
+            # Test sudo access
+            if sudo -n true 2>/dev/null || sudo -v; then
+                use_sudo=1
+                log info "Using directory with sudo: $bin_dir"
             else
-                # Test sudo access
-                if sudo -n true 2>/dev/null || sudo -v; then
-                    bin_dir="$SYSTEM_BIN_DIR"
-                    use_sudo=1
-                    log info "Using system directory with sudo: $bin_dir"
-                else
-                    log warn "sudo access denied, falling back to user directory"
-                    bin_dir="$DEFAULT_BIN_DIR"
-                    use_sudo=0
-                    log info "Using user directory: $bin_dir"
-                    mkdir -p "$bin_dir"
-                fi
+                log error "sudo access denied and cannot write to $bin_dir"
+                log error "Please choose a different directory or run with appropriate permissions"
+                exit 1
             fi
         else
-            # Non-interactive, fall back to user directory
-            bin_dir="$DEFAULT_BIN_DIR"
-            use_sudo=0
-            log info "Non-interactive mode, using user directory: $bin_dir"
-            mkdir -p "$bin_dir"
+            log error "Non-interactive mode and cannot write to $bin_dir"
+            exit 1
         fi
     fi
 
