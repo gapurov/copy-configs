@@ -408,7 +408,7 @@ gwq() {
         \"$gwqx_path\" \"\$@\"
     else
         # Pass through to native gwq for all other commands
-        /usr/local/bin/gwq \"\$@\"
+        \"\$bin_dir/gwq\" \"\$@\"
     fi
 }
 "
