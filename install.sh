@@ -29,7 +29,7 @@ readonly SYSTEM_BIN_DIR="/usr/local/bin"
 
 # ---------- global variables ----------
 declare -g use_color=1 is_tty=0 verbose_mode=0 dry_run=0
-declare -g bin_dir="" configs_dir=""
+declare -g bin_dir="" configs_dir="" use_sudo=0
 declare -g os_type="" arch_type=""
 
 # ---------- initialization ----------
@@ -128,14 +128,43 @@ check_dependencies() {
 
 # ---------- directory setup ----------
 setup_directories() {
-    # Check if we can write to system directories
+    # Try to use system directory for gwq (preferred)
     if [[ -w "$SYSTEM_BIN_DIR" ]] 2>/dev/null; then
         bin_dir="$SYSTEM_BIN_DIR"
+        use_sudo=0
         log info "Using system directory: $bin_dir"
     else
-        bin_dir="$DEFAULT_BIN_DIR"
-        log info "Using user directory: $bin_dir"
-        mkdir -p "$bin_dir"
+        # Ask if user wants to use sudo for system installation
+        log info "gwq installation requires system directory access (/usr/local/bin)"
+        if [[ $is_tty -eq 1 ]]; then
+            read -p "Use sudo to install gwq to $SYSTEM_BIN_DIR? [Y/n]: " -n 1 -r sudo_choice
+            echo
+            if [[ $sudo_choice =~ ^[Nn]$ ]]; then
+                bin_dir="$DEFAULT_BIN_DIR"
+                use_sudo=0
+                log info "Using user directory: $bin_dir"
+                mkdir -p "$bin_dir"
+            else
+                # Test sudo access
+                if sudo -n true 2>/dev/null || sudo -v; then
+                    bin_dir="$SYSTEM_BIN_DIR"
+                    use_sudo=1
+                    log info "Using system directory with sudo: $bin_dir"
+                else
+                    log warn "sudo access denied, falling back to user directory"
+                    bin_dir="$DEFAULT_BIN_DIR"
+                    use_sudo=0
+                    log info "Using user directory: $bin_dir"
+                    mkdir -p "$bin_dir"
+                fi
+            fi
+        else
+            # Non-interactive, fall back to user directory
+            bin_dir="$DEFAULT_BIN_DIR"
+            use_sudo=0
+            log info "Non-interactive mode, using user directory: $bin_dir"
+            mkdir -p "$bin_dir"
+        fi
     fi
 
     # Ask user for configs directory
@@ -240,14 +269,24 @@ download_and_install_gwq() {
     fi
 
     log info "Installing gwq to $bin_dir/gwq"
-    if ! cp "$gwq_binary" "$bin_dir/gwq"; then
-        log error "Failed to install gwq binary"
-        exit 1
-    fi
-
-    if ! chmod +x "$bin_dir/gwq"; then
-        log error "Failed to make gwq executable"
-        exit 1
+    if [[ $use_sudo -eq 1 ]]; then
+        if ! sudo cp "$gwq_binary" "$bin_dir/gwq"; then
+            log error "Failed to install gwq binary with sudo"
+            exit 1
+        fi
+        if ! sudo chmod +x "$bin_dir/gwq"; then
+            log error "Failed to make gwq executable with sudo"
+            exit 1
+        fi
+    else
+        if ! cp "$gwq_binary" "$bin_dir/gwq"; then
+            log error "Failed to install gwq binary"
+            exit 1
+        fi
+        if ! chmod +x "$bin_dir/gwq"; then
+            log error "Failed to make gwq executable"
+            exit 1
+        fi
     fi
 
     log ok "gwq installed successfully"
