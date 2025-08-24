@@ -408,7 +408,7 @@ gwq() {
         \"$gwqx_path\" \"\$@\"
     else
         # Pass through to native gwq for all other commands
-        \$(command -v gwq) \"\$@\"
+        \"$bin_dir/gwq\" \"\$@\"
     fi
 }
 "
@@ -461,7 +461,7 @@ show_instructions() {
     echo "        \"$configs_dir/gwqx\" \"\$@\""
     echo "    else"
     echo "        # Pass through to native gwq for all other commands"
-    echo "        \$(command -v gwq) \"\$@\""
+    echo "        \"$bin_dir/gwq\" \"\$@\""
     echo "    fi"
     echo "}"
     echo
