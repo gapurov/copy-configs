@@ -71,8 +71,12 @@ test_full_installation() {
     # Set up test environment
     local test_bin_dir="$TEST_DIR/bin"
     local test_configs_dir="$TEST_DIR/configs"
+    local test_home_dir="$TEST_DIR/home"
     
-    mkdir -p "$test_bin_dir" "$test_configs_dir"
+    mkdir -p "$test_bin_dir" "$test_configs_dir" "$test_home_dir"
+    
+    # Use isolated HOME so shell rc modifications happen in temp, not user rc
+    export HOME="$test_home_dir"
     
     # Temporarily modify PATH to include our test directories
     export PATH="$test_bin_dir:$PATH"
@@ -80,6 +84,7 @@ test_full_installation() {
     log info "Test directories:"
     log info "  Binary dir: $test_bin_dir"
     log info "  Config dir: $test_configs_dir"
+    log info "  HOME dir:   $HOME"
     
     # Create a modified version of the install script that uses our test directories
     local test_install_script="$TEST_DIR/test-install.sh"
