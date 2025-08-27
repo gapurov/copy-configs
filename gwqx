@@ -29,9 +29,13 @@ readonly REQUIRED_DEPS=(git gwq jq)
 readonly COPY_CONFIGS_SCRIPT="$(dirname "$0")/copy-configs.sh"
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0 verbose_mode=0 debug_mode=0 dry_run_mode=0
-declare -ga GWQ_ARGS=()
-declare -ga COPY_ARGS=()
+use_color=1
+is_tty=0
+verbose_mode=0
+debug_mode=0
+dry_run_mode=0
+GWQ_ARGS=()
+COPY_ARGS=()
 
 # ---------- initialization ----------
 [[ -t 1 ]] && is_tty=1
@@ -261,8 +265,11 @@ if [[ -z $new_paths ]]; then
 fi
 
 # Count actual number of worktree paths
-path_count=$(echo "$new_paths" | wc -l | tr -d ' ')
-[[ -z $new_paths ]] && path_count=0
+if [[ -n "$new_paths" ]]; then
+    path_count=$(printf '%s\n' "$new_paths" | wc -l | tr -d ' ')
+else
+    path_count=0
+fi
 
 log info "Copying files into $path_count new worktree(s)"
 

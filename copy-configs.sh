@@ -8,7 +8,7 @@
 #   Missing items are skipped. Works with any directory structure.
 #
 # REQUIREMENTS
-#   - git, rsync
+#   - rsync (git optional)
 #
 # USAGE
 #   echo "path/to/target" | copy-configs [OPTIONS]
@@ -23,7 +23,7 @@ set -euo pipefail
 # ---------- constants ----------
 readonly SCRIPT_VERSION="0.0.1"
 readonly MAX_CONFIG_SIZE=1048576  # 1MB
-readonly REQUIRED_DEPS=(git rsync)
+readonly REQUIRED_DEPS=(rsync)
 
 # Default files to copy when no config exists
 readonly DEFAULT_COPY_PATTERNS=(
@@ -40,11 +40,16 @@ readonly DEFAULT_COPY_PATTERNS=(
 )
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0 source_root=""
-declare -g cfg_override="" conflict_mode="skip"
-declare -g verbose_mode=0 debug_mode=0 dry_run_mode=0
-declare -g target_override=""
-declare -ga TARGET_PATHS=()
+use_color=1
+is_tty=0
+source_root=""
+cfg_override=""
+conflict_mode="skip"
+verbose_mode=0
+debug_mode=0
+dry_run_mode=0
+target_override=""
+TARGET_PATHS=()
 
 # ---------- initialization ----------
 # Cache TTY detection for performance
@@ -58,7 +63,7 @@ log() {
     case "$level" in
         info)  prefix='>>' icon='>>'; color='36' ;;
         ok)    prefix='✓'  icon='✓';  color='32' ;;
-        warn)  prefix='--' icon='--'; color='90' ;;
+        warn)  prefix='--' icon='--'; color='90'; output_fd=2 ;;
         error) prefix='!!' icon='!!'; color='31'; output_fd=2 ;;
         verb)  [[ $verbose_mode -eq 1 ]] || return 0; prefix='**' icon='**'; color='35'; output_fd=2 ;;
         debug) [[ $debug_mode -eq 1 ]] || return 0; prefix='DD' icon='DD'; color='33'; output_fd=2 ;;
@@ -103,7 +108,7 @@ check_dependencies() {
     log debug "All dependencies verified: ${REQUIRED_DEPS[*]}"
 }
 
-check_dependencies
+# Defer dependency check until after args are parsed so --help works offline
 
 # ---------- help ----------
 print_help() {
@@ -193,13 +198,6 @@ validate_path_safety() {
             return 1 ;;
     esac
 
-    # Check for null bytes and dangerous characters (but allow glob patterns)
-    local clean_path="${path//[$'\0\n\r']/}"
-    if [[ ${#clean_path} -ne ${#path} ]]; then
-        log error "Invalid control characters in path: $path"
-        return 1
-    fi
-
     return 0
 }
 
@@ -244,17 +242,26 @@ log debug "Target paths from args: ${TARGET_PATHS[*]:-<none>}"
 log debug "Config override: ${cfg_override:-<none>}"
 log debug "Conflict mode: $conflict_mode"
 
+# Now that args are parsed, verify deps (resolve source root after function is defined)
+check_dependencies
+
 # ---------- repo validation ----------
 get_source_root() {
     local root
-    if ! root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
-        log error "Please run from inside a git repository."
-        exit 1
+    if command -v git >/dev/null 2>&1; then
+        if root="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+            log verb "Source root (git): $root"
+            printf '%s' "$root"
+            return 0
+        fi
     fi
-    log verb "Source root: $root"
+    # Fallback to current directory if not in a git repo
+    root="$(pwd)"
+    log warn "Not in a git repo; using current directory as source root: $root"
     printf '%s' "$root"
 }
 
+# Resolve source root after function is defined
 source_root="$(get_source_root)"
 
 # ---------- config resolution ----------
@@ -310,7 +317,7 @@ log debug "Target paths: ${TARGET_PATHS[*]}"
 # Args: raw - raw line from config file
 #       rule_array_ref - name of array variable to store result
 # Returns: 0 if valid rule parsed, 1 if invalid/empty
-# Side effects: validates path safety, populates result array via nameref
+# Side effects: validates path safety; populates globals: PARSED_SRC, PARSED_DEST
 parse_config_rule() {
     local raw="$1" rule_array_ref="$2"
     local -a parsed_rule=()
@@ -336,9 +343,9 @@ parse_config_rule() {
         return 1
     fi
 
-    # Use nameref to return array
-    local -n result_ref="$rule_array_ref"
-    result_ref=("${parsed_rule[@]}")
+    # Set global outputs for bash 3.2 compatibility
+    PARSED_SRC="${parsed_rule[0]}"
+    PARSED_DEST="${parsed_rule[1]}"
     return 0
 }
 
@@ -362,28 +369,6 @@ handle_file_conflict() {
     esac
 }
 
-copy_file_to_dest() {
-    local src="$1" dest="$2" want_dir="$3" wtree="$4"
-
-    # Ensure dest ends with / if it should be a directory
-    if [[ $want_dir -eq 1 && $dest != */ ]]; then
-        dest="${dest}/"
-    fi
-
-    # Handle conflicts
-    if [[ -e $dest || -L $dest ]]; then
-        handle_file_conflict "$dest" "$wtree" || return 0
-    fi
-
-    mkdir -p "$(dirname "$dest")" 2>/dev/null || true
-
-    # Copy with rsync for reliability
-    if ! rsync -a "$src" "$dest"; then
-        log error "Failed to copy $src to $dest"
-        return 1
-    fi
-}
-
 # ---------- file matching ----------
 find_matching_files() {
     local pattern="$1" source_dir="$2"
@@ -392,9 +377,10 @@ find_matching_files() {
     (
         cd "$source_dir" || exit 1
         shopt -s nullglob dotglob
-        # shellcheck disable=SC2206
-        local -a matches=( $pattern )
-        printf '%s\n' "${matches[@]}"
+        # Expand pattern and print each match on its own line
+        for m in $pattern; do
+            printf '%s\n' "$m"
+        done
     )
 }
 
@@ -472,17 +458,9 @@ process_patterns() {
     for pattern in "${patterns[@]}"; do
         log debug "Processing pattern: '$pattern'"
 
-        local matching_files
-        matching_files="$(find_matching_files "$pattern" "$source_root")"
-
-        if [[ -z $matching_files ]]; then
-            log verb "skip (missing): $pattern"
-            continue
-        fi
-
-        log verb "Found matches for '$pattern': $(echo "$matching_files" | wc -l) files"
-
+        local count=0 had_matches=0 src_file
         while IFS= read -r src_file; do
+            had_matches=1
             [[ -z $src_file ]] && continue
             [[ -e $source_root/$src_file || -L $source_root/$src_file ]] || { log warn "skip (missing): $src_file"; continue; }
 
@@ -491,7 +469,14 @@ process_patterns() {
             else
                 copy_file "$source_root/$src_file" "$target"
             fi
-        done <<< "$matching_files"
+            count=$((count+1))
+        done < <(find_matching_files "$pattern" "$source_root")
+
+        if [[ $had_matches -eq 0 ]]; then
+            log verb "skip (missing): $pattern"
+        else
+            log verb "Found matches for '$pattern': $count files"
+        fi
     done
 }
 
@@ -499,10 +484,8 @@ process_config_file() {
     local target="$1" config_file="$2"
 
     while IFS= read -r line || [[ -n $line ]]; do
-        local -a rule_parts=()
-        parse_config_rule "$line" rule_parts || continue
-
-        local src_pattern="${rule_parts[0]}" dest_rel="${rule_parts[1]}"
+        parse_config_rule "$line" _ || continue
+        local src_pattern="$PARSED_SRC" dest_rel="$PARSED_DEST"
         process_patterns "$target" "$dest_rel" "$src_pattern"
     done < "$config_file"
 }

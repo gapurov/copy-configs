@@ -166,8 +166,20 @@ setup_directories() {
 
     # Ask user for configs directory
     log info "Where should the copy-configs scripts be installed?"
-    read -p "Enter path (default: $DEFAULT_CONFIGS_DIR): " configs_input
-    configs_dir="${configs_input:-$DEFAULT_CONFIGS_DIR}"
+    if [[ $is_tty -eq 1 ]]; then
+        read -p "Enter path (default: $DEFAULT_CONFIGS_DIR): " configs_input
+        configs_dir="${configs_input:-$DEFAULT_CONFIGS_DIR}"
+    else
+        # In non-interactive mode, attempt to read a single line from stdin; fallback to default
+        local configs_input=""
+        if IFS= read -r -t 0.1 configs_input; then
+            configs_dir="${configs_input:-$DEFAULT_CONFIGS_DIR}"
+            log info "Non-interactive input detected, using: $configs_dir"
+        else
+            configs_dir="$DEFAULT_CONFIGS_DIR"
+            log info "Non-interactive mode, using: $configs_dir"
+        fi
+    fi
     
     if [[ ! -d "$configs_dir" ]]; then
         log info "Creating directory: $configs_dir"
@@ -233,18 +245,18 @@ download_and_install_gwq() {
         log info "DRY RUN: Would download and install gwq"
         return 0
     fi
-    
+
     local download_url
     download_url="$(get_latest_gwq_release)"
-    
+
     log info "Downloading gwq..."
-    
+
     local temp_dir
     temp_dir="$(mktemp -d)"
-    trap "rm -rf '$temp_dir'" EXIT
-    
+    trap 'rm -rf "$temp_dir"' EXIT
+
     local archive_path="$temp_dir/gwq.tar.gz"
-    
+
     if ! curl -fsSL -o "$archive_path" "$download_url"; then
         log error "Failed to download gwq"
         exit 1
@@ -259,7 +271,7 @@ download_and_install_gwq() {
     # Find the gwq binary in the extracted files
     local gwq_binary
     gwq_binary="$(find "$temp_dir" -name "gwq" -type f | head -1)"
-    
+
     if [[ -z "$gwq_binary" ]]; then
         log error "Could not find gwq binary in extracted archive"
         exit 1
@@ -286,6 +298,10 @@ download_and_install_gwq() {
         fi
     fi
 
+    # Ensure cleanup now even if later trap changes
+    rm -rf "$temp_dir" 2>/dev/null || true
+    trap - EXIT
+
     log ok "gwq installed successfully"
 }
 
@@ -295,16 +311,16 @@ download_and_install_configs() {
         log info "DRY RUN: Would download and install copy-configs scripts"
         return 0
     fi
-    
+
     log info "Downloading copy-configs scripts..."
-    
+
     local temp_dir
     temp_dir="$(mktemp -d)"
-    trap "rm -rf '$temp_dir'" EXIT
-    
+    trap 'rm -rf "$temp_dir"' EXIT
+
     local archive_url="https://github.com/$CONFIGS_REPO/archive/refs/heads/$CONFIGS_BRANCH.tar.gz"
     local archive_path="$temp_dir/configs.tar.gz"
-    
+
     if ! curl -fsSL -o "$archive_path" "$archive_url"; then
         log error "Failed to download copy-configs repository"
         exit 1
@@ -319,14 +335,14 @@ download_and_install_configs() {
     # Find the extracted repository directory
     local repo_dir
     repo_dir="$(find "$temp_dir" -name "copy-configs-main" -type d | head -1)"
-    
+
     if [[ -z "$repo_dir" ]]; then
         log error "Could not find copy-configs repository directory"
         exit 1
     fi
 
     log info "Installing copy-configs scripts to $configs_dir"
-    
+
     # Copy the scripts
     if [[ -f "$repo_dir/copy-configs.sh" ]]; then
         if ! cp "$repo_dir/copy-configs.sh" "$configs_dir/copy-configs.sh"; then
@@ -337,7 +353,7 @@ download_and_install_configs() {
         log error "copy-configs.sh not found in repository"
         exit 1
     fi
-    
+
     if [[ -f "$repo_dir/gwqx" ]]; then
         if ! cp "$repo_dir/gwqx" "$configs_dir/gwqx"; then
             log error "Failed to copy gwqx"
@@ -361,6 +377,10 @@ download_and_install_configs() {
     else
         log info "DRY RUN: Would make scripts executable"
     fi
+
+    # Ensure cleanup now even if later trap changes
+    rm -rf "$temp_dir" 2>/dev/null || true
+    trap - EXIT
 
     log ok "copy-configs scripts installed successfully"
 }
