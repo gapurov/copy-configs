@@ -28,9 +28,15 @@ readonly DEFAULT_CONFIGS_DIR="$HOME/.local/bin/copy-configs"
 readonly SYSTEM_BIN_DIR="/usr/local/bin"
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0 verbose_mode=0 dry_run=0
-declare -g bin_dir="" configs_dir="" use_sudo=0
-declare -g os_type="" arch_type=""
+use_color=1
+is_tty=0
+verbose_mode=0
+dry_run=0
+bin_dir=""
+configs_dir=""
+use_sudo=0
+os_type=""
+arch_type=""
 
 # ---------- initialization ----------
 [[ -t 1 ]] && is_tty=1
@@ -172,7 +178,7 @@ setup_directories() {
     else
         # In non-interactive mode, attempt to read a single line from stdin; fallback to default
         local configs_input=""
-        if IFS= read -r -t 0.1 configs_input; then
+        if IFS= read -r -t 1 configs_input; then
             configs_dir="${configs_input:-$DEFAULT_CONFIGS_DIR}"
             log info "Non-interactive input detected, using: $configs_dir"
         else

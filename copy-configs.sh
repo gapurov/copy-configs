@@ -50,6 +50,7 @@ debug_mode=0
 dry_run_mode=0
 target_override=""
 TARGET_PATHS=()
+source_root_override=""
 
 # ---------- initialization ----------
 # Cache TTY detection for performance
@@ -119,6 +120,7 @@ Usage: copy-configs [OPTIONS] [--target PATH]
 
 OPTIONS:
   --config, -c FILE     Path to rules file (overrides default search)
+  --source, -s PATH     Explicit source root to copy from
   --conflict, -C MODE   skip|overwrite|backup   (default: skip)
   --target, -t PATH     Explicit target path (can be used multiple times)
   --no-color            Disable ANSI colors in output
@@ -211,6 +213,9 @@ parse_arguments() {
             -c|--config)
                 [[ $# -ge 2 ]] || { log error "Missing argument for $1"; exit 1; }
                 cfg_override="$2"; shift 2; continue ;;
+            -s|--source)
+                [[ $# -ge 2 ]] || { log error "Missing argument for $1"; exit 1; }
+                source_root_override="$2"; shift 2; continue ;;
             -C|--conflict|--copy-on-conflict)
                 [[ $# -ge 2 ]] || { log error "Missing argument for $1"; exit 1; }
                 validate_conflict_mode "$2" || exit 1
@@ -262,7 +267,12 @@ get_source_root() {
 }
 
 # Resolve source root after function is defined
-source_root="$(get_source_root)"
+if [[ -n "$source_root_override" ]]; then
+    source_root="$source_root_override"
+    log verb "Source root (override): $source_root"
+else
+    source_root="$(get_source_root)"
+fi
 
 # ---------- config resolution ----------
 find_config_file() {
@@ -275,6 +285,11 @@ find_config_file() {
 
     local cfg_file
     for cfg_file in "${config_paths[@]}"; do
+        # Allow non-regular files for explicit override (e.g., process substitution)
+        if [[ -n $cfg_file && $cfg_file == "$cfg_override" && -r $cfg_file ]]; then
+            printf '%s' "$cfg_file"
+            return 0
+        fi
         [[ -n $cfg_file && -f $cfg_file ]] || continue
         if validate_config_file "$cfg_file"; then
             printf '%s' "$cfg_file"
@@ -411,16 +426,24 @@ copy_file() {
             return 1
         fi
     else
-        # Relative structure
+        # Relative structure from source_root
+        local rel
+        rel="${src#$source_root/}"
+        local final_dest="$target/$rel"
         if [[ $dry_run_mode -eq 1 ]]; then
-            log dry "Would copy with relative structure: $(basename "$src") -> $target/"
+            log dry "Would copy with relative structure: $rel -> $target/"
             return 0
         fi
 
-        if (cd "$(dirname "$src")" && rsync -a --relative "./$(basename "$src")" "$target/"); then
-            log ok "copied: $(basename "$src")"
+        # Handle conflicts for single-file/directory copy
+        if [[ -e $final_dest || -L $final_dest ]]; then
+            handle_file_conflict "$final_dest" "$target" || return 0
+        fi
+
+        if (cd "$source_root" && rsync -a --relative "./$rel" "$target/"); then
+            log ok "copied: $rel"
         else
-            log error "Failed to copy $src with relative structure"
+            log error "Failed to copy $rel with relative structure"
             return 1
         fi
     fi
@@ -458,9 +481,8 @@ process_patterns() {
     for pattern in "${patterns[@]}"; do
         log debug "Processing pattern: '$pattern'"
 
-        local count=0 had_matches=0 src_file
+        local count=0 src_file
         while IFS= read -r src_file; do
-            had_matches=1
             [[ -z $src_file ]] && continue
             [[ -e $source_root/$src_file || -L $source_root/$src_file ]] || { log warn "skip (missing): $src_file"; continue; }
 
@@ -472,7 +494,7 @@ process_patterns() {
             count=$((count+1))
         done < <(find_matching_files "$pattern" "$source_root")
 
-        if [[ $had_matches -eq 0 ]]; then
+        if [[ $count -eq 0 ]]; then
             log verb "skip (missing): $pattern"
         else
             log verb "Found matches for '$pattern': $count files"

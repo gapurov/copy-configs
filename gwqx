@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # gwqx — Enhanced gwq with post-create file copying
-# Version: 2.0.0
+# Version: 2.1.0
 #
 # SUMMARY
 #   Multi-purpose gwq enhancement tool:
@@ -9,7 +9,7 @@
 #   3. Can be called directly as 'gwqx' for the addx functionality
 #
 # REQUIREMENTS
-#   - bash 4.0+ (required for associative arrays)
+#   - bash 3.2+
 #   - git, gwq, jq (for detecting new worktrees)
 #   - copy-configs.sh (standalone copy utility)
 #
@@ -203,26 +203,23 @@ get_worktree_paths() {
 }
 
 get_new_worktrees() {
-    local -A before_set=()
-    local -a before_list=() after_list=() new_list=()
-
     # Snapshot before
-    if ! mapfile -t before_list < <(get_worktree_paths); then
+    local before_file after_file
+    before_file="$(mktemp)" || { log error "mktemp failed"; return 1; }
+    after_file="$(mktemp)" || { log error "mktemp failed"; rm -f "$before_file"; return 1; }
+
+    if ! get_worktree_paths >"$before_file"; then
         log error "Failed to get initial worktree list"
+        rm -f "$before_file" "$after_file"
         exit 1
     fi
-
-    local path
-    for path in "${before_list[@]}"; do
-        before_set["$path"]=1
-    done
 
     # Run gwq add
     log info "Creating worktree(s): gwq add ${GWQ_ARGS[*]}"
     if [[ $dry_run_mode -eq 1 ]]; then
         log dry "Would run: gwq add ${GWQ_ARGS[*]}"
-        # Simulate new worktrees for dry run
         printf '/tmp/dry-run-worktree-1\n'
+        rm -f "$before_file" "$after_file"
         return 0
     else
         local gwq_output
@@ -230,25 +227,27 @@ get_new_worktrees() {
             log verb "gwq add output: $gwq_output"
         else
             log error "gwq add failed: $gwq_output"
+            rm -f "$before_file" "$after_file"
             exit 1
         fi
     fi
 
-    # Snapshot after and find new paths
-    if ! mapfile -t after_list < <(get_worktree_paths); then
+    # Snapshot after
+    if ! get_worktree_paths >"$after_file"; then
         log error "Failed to get updated worktree list"
+        rm -f "$before_file" "$after_file"
         exit 1
     fi
 
-    for path in "${after_list[@]}"; do
-        if [[ -z ${before_set[$path]:-} ]]; then
-            new_list+=("$path")
-        fi
-    done
-
-    if [[ ${#new_list[@]} -gt 0 ]]; then
-        printf '%s\n' "${new_list[@]}"
+    # Print lines present only in after (new worktrees)
+    if command -v comm >/dev/null 2>&1; then
+        comm -13 "$before_file" "$after_file" || true
+    else
+        # Fallback without comm
+        grep -vxFf "$before_file" "$after_file" || true
     fi
+
+    rm -f "$before_file" "$after_file"
 }
 
 # ---------- main execution ----------

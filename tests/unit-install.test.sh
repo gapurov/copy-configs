@@ -20,8 +20,10 @@ readonly TEST_DIR="$(mktemp -d)"
 readonly INSTALL_SCRIPT="$(dirname "$0")/../install.sh"
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0 verbose_mode=0
-declare -g test_failures=0
+use_color=1
+is_tty=0
+verbose_mode=0
+test_failures=0
 
 # ---------- initialization ----------
 [[ -t 1 ]] && is_tty=1
@@ -63,6 +65,16 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+# ---------- helpers ----------
+run_with_timeout() {
+    local seconds="$1"; shift
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$seconds" "$@"
+    else
+        "$@"
+    fi
+}
 
 # ---------- test functions ----------
 test_script_exists() {
@@ -310,7 +322,7 @@ test_dry_run() {
     
     # Test that script can parse arguments without executing
     local script_output
-    if script_output="$(echo "$test_configs_dir" | timeout 30 bash "$INSTALL_SCRIPT" --dry-run --verbose 2>&1)"; then
+    if script_output="$(echo "$test_configs_dir" | run_with_timeout 30 bash "$INSTALL_SCRIPT" --dry-run --verbose 2>&1)"; then
         # Check if script started properly
         if [[ "$script_output" == *"Starting copy-configs installation (DRY RUN)"* ]]; then
             log pass "Script dry run started successfully"

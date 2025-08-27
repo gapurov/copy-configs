@@ -19,8 +19,9 @@ readonly TEST_DIR="$(mktemp -d)"
 readonly INSTALL_SCRIPT="$(dirname "$0")/../install.sh"
 
 # ---------- global variables ----------
-declare -g use_color=1 is_tty=0
-declare -g test_failures=0
+use_color=1
+is_tty=0
+test_failures=0
 
 # ---------- initialization ----------
 [[ -t 1 ]] && is_tty=1
@@ -103,7 +104,12 @@ setup_directories() {\
     # Run the installation with automatic input
     log info "Running installation script..."
     
-    if echo "$test_configs_dir" | timeout 120 bash "$test_install_script" --verbose; then
+    if command -v timeout >/dev/null 2>&1; then
+        echo "$test_configs_dir" | timeout 120 bash "$test_install_script" --verbose
+    else
+        echo "$test_configs_dir" | bash "$test_install_script" --verbose
+    fi
+    if [[ $? -eq 0 ]]; then
         log pass "Installation script completed successfully"
     else
         log fail "Installation script failed or timed out"
