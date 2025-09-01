@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# full-install.test.sh — Full integration test for install.sh
-# Version: 1.0.0
-#
-# SUMMARY
-#   Tests the complete installation process in an isolated environment
-#
-# USAGE
-#   ./full-install.test.sh
-#
-# AUTHOR
-#   Enhanced with Claude Code assistance
 
 set -euo pipefail
 
@@ -54,7 +43,7 @@ cleanup() {
     local exit_code=$?
     log info "Cleaning up test environment: $TEST_DIR"
     rm -rf "$TEST_DIR" 2>/dev/null || true
-    
+
     if [[ $test_failures -eq 0 && $exit_code -eq 0 ]]; then
         log ok "Full installation test passed!"
     else
@@ -67,28 +56,28 @@ trap cleanup EXIT
 # ---------- test installation ----------
 test_full_installation() {
     log test "Testing complete installation process"
-    
+
     # Set up test environment
     local test_bin_dir="$TEST_DIR/bin"
     local test_configs_dir="$TEST_DIR/configs"
     local test_home_dir="$TEST_DIR/home"
-    
+
     mkdir -p "$test_bin_dir" "$test_configs_dir" "$test_home_dir"
-    
+
     # Use isolated HOME so shell rc modifications happen in temp, not user rc
     export HOME="$test_home_dir"
-    
+
     # Temporarily modify PATH to include our test directories
     export PATH="$test_bin_dir:$PATH"
-    
+
     log info "Test directories:"
     log info "  Binary dir: $test_bin_dir"
     log info "  Config dir: $test_configs_dir"
     log info "  HOME dir:   $HOME"
-    
+
     # Create a modified version of the install script that uses our test directories
     local test_install_script="$TEST_DIR/test-install.sh"
-    
+
     # Copy the install script and replace the setup_directories function
     sed '/^setup_directories() {$/,/^}$/c\
 setup_directories() {\
@@ -103,12 +92,12 @@ setup_directories() {\
     log verb "Binary directory: $bin_dir"\
     log verb "Configs directory: $configs_dir"\
 }' "$INSTALL_SCRIPT" > "$test_install_script"
-    
+
     chmod +x "$test_install_script"
-    
+
     # Run the installation with automatic input
     log info "Running installation script..."
-    
+
     if command -v timeout >/dev/null 2>&1; then
         echo "$test_configs_dir" | timeout 120 bash "$test_install_script" --verbose
     else
@@ -121,12 +110,12 @@ setup_directories() {\
         ((test_failures++))
         return 1
     fi
-    
+
     # Verify gwq installation
     log test "Verifying gwq installation"
     if [[ -f "$test_bin_dir/gwq" && -x "$test_bin_dir/gwq" ]]; then
         log pass "gwq binary installed and executable"
-        
+
         # Test gwq functionality
         if "$test_bin_dir/gwq" --help >/dev/null 2>&1; then
             log pass "gwq binary works correctly"
@@ -138,12 +127,12 @@ setup_directories() {\
         log fail "gwq binary not found or not executable"
         ((test_failures++))
     fi
-    
+
     # Verify copy-configs installation
     log test "Verifying copy-configs installation"
     if [[ -f "$test_configs_dir/copy-configs.sh" && -x "$test_configs_dir/copy-configs.sh" ]]; then
         log pass "copy-configs.sh installed and executable"
-        
+
         # Test copy-configs functionality
         if "$test_configs_dir/copy-configs.sh" --help >/dev/null 2>&1; then
             log pass "copy-configs.sh works correctly"
@@ -155,12 +144,12 @@ setup_directories() {\
         log fail "copy-configs.sh not found or not executable"
         ((test_failures++))
     fi
-    
+
     # Verify gwqx installation (optional, may not exist in repository)
     log test "Verifying gwqx installation"
     if [[ -f "$test_configs_dir/gwqx" && -x "$test_configs_dir/gwqx" ]]; then
         log pass "gwqx installed and executable"
-        
+
         # Test gwqx functionality
         if "$test_configs_dir/gwqx" --help >/dev/null 2>&1; then
             log pass "gwqx works correctly"
@@ -171,7 +160,7 @@ setup_directories() {\
     else
         log warn "gwqx not found (may not exist in repository)"
     fi
-    
+
     # Note: Symlinks are no longer created by the installation script
     log test "Verifying no symlinks created"
     if [[ ! -L "$test_bin_dir/copy-configs" && ! -L "$test_bin_dir/gwqx" ]]; then
@@ -179,7 +168,7 @@ setup_directories() {\
     else
         log warn "Unexpected symlinks found"
     fi
-    
+
     return 0
 }
 
@@ -188,15 +177,15 @@ main() {
     log info "Starting full installation test (version $SCRIPT_VERSION)"
     log info "Test directory: $TEST_DIR"
     echo
-    
+
     if [[ ! -f "$INSTALL_SCRIPT" ]]; then
         log error "Install script not found: $INSTALL_SCRIPT"
         exit 1
     fi
-    
+
     # Run the full installation test
     test_full_installation
-    
+
     echo
     if [[ $test_failures -eq 0 ]]; then
         log ok "Full installation test completed successfully!"

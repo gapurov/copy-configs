@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# install.test.sh — Test script for install.sh
-# Version: 1.0.0
-#
-# SUMMARY
-#   Tests the installation script functionality in a controlled environment
-#   without affecting the actual system.
-#
-# USAGE
-#   ./install.test.sh
-#
-# AUTHOR
-#   Enhanced with Claude Code assistance
 
 set -euo pipefail
 
@@ -56,7 +44,7 @@ cleanup() {
     local exit_code=$?
     log info "Cleaning up test environment: $TEST_DIR"
     rm -rf "$TEST_DIR" 2>/dev/null || true
-    
+
     if [[ $test_failures -eq 0 && $exit_code -eq 0 ]]; then
         log ok "All tests passed!"
     else
@@ -79,7 +67,7 @@ run_with_timeout() {
 # ---------- test functions ----------
 test_script_exists() {
     log test "Checking if install script exists"
-    
+
     if [[ -f "$INSTALL_SCRIPT" ]]; then
         log pass "Install script found: $INSTALL_SCRIPT"
         return 0
@@ -92,7 +80,7 @@ test_script_exists() {
 
 test_script_executable() {
     log test "Checking if install script is executable"
-    
+
     if [[ -x "$INSTALL_SCRIPT" ]]; then
         log pass "Install script is executable"
         return 0
@@ -105,7 +93,7 @@ test_script_executable() {
 
 test_help_option() {
     log test "Testing --help option"
-    
+
     local help_output
     if help_output="$(bash "$INSTALL_SCRIPT" --help 2>&1)"; then
         if [[ "$help_output" == *"copy-configs installation script"* ]]; then
@@ -125,10 +113,10 @@ test_help_option() {
 
 test_os_detection() {
     log test "Testing OS detection functionality"
-    
+
     # Create a modified version of the script to test detection functions
     local test_script="$TEST_DIR/test_detect.sh"
-    
+
     # Extract just the detection functions and test them
     cat > "$test_script" <<'EOF'
 #!/usr/bin/env bash
@@ -179,7 +167,7 @@ echo "ARCH: $(detect_arch)"
 EOF
 
     chmod +x "$test_script"
-    
+
     local detection_output
     if detection_output="$(bash "$test_script" 2>&1)"; then
         if [[ "$detection_output" == *"OS: "* && "$detection_output" == *"ARCH: "* ]]; then
@@ -199,17 +187,17 @@ EOF
 
 test_dependency_check() {
     log test "Testing dependency checking"
-    
+
     # Test that required commands exist
     local required_deps=(curl tar)
     local missing=()
-    
+
     for dep in "${required_deps[@]}"; do
         if ! command -v "$dep" >/dev/null 2>&1; then
             missing+=("$dep")
         fi
     done
-    
+
     if [[ ${#missing[@]} -eq 0 ]]; then
         log pass "All required dependencies available: ${required_deps[*]}"
         return 0
@@ -222,9 +210,9 @@ test_dependency_check() {
 
 test_github_api_access() {
     log test "Testing GitHub API access"
-    
+
     local api_url="https://api.github.com/repos/d-kuro/gwq/releases/latest"
-    
+
     if curl -fsSL --connect-timeout 10 "$api_url" >/dev/null 2>&1; then
         log pass "GitHub API accessible"
         return 0
@@ -237,15 +225,15 @@ test_github_api_access() {
 
 test_gwq_release_parsing() {
     log test "Testing gwq release information parsing"
-    
+
     local api_url="https://api.github.com/repos/d-kuro/gwq/releases/latest"
     local release_data
-    
+
     if ! release_data="$(curl -fsSL --connect-timeout 10 "$api_url" 2>/dev/null)"; then
         log warn "Skipping release parsing test (network issue)"
         return 0
     fi
-    
+
     # Test version extraction
     local version
     if version="$(echo "$release_data" | grep '"tag_name"' | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"; then
@@ -261,22 +249,22 @@ test_gwq_release_parsing() {
         ((test_failures++))
         return 1
     fi
-    
+
     # Test asset URL extraction (for current platform)
     local os_type arch_type release_os release_arch
     case "$(uname -s)" in
         Darwin*) os_type="darwin"; release_os="Darwin" ;;
         Linux*) os_type="linux"; release_os="Linux" ;;
     esac
-    
+
     case "$(uname -m)" in
         x86_64|amd64) arch_type="amd64"; release_arch="x86_64" ;;
         arm64|aarch64) arch_type="arm64"; release_arch="arm64" ;;
     esac
-    
+
     local asset_name="gwq_${release_os}_${release_arch}.tar.gz"
     local download_url
-    
+
     if download_url="$(echo "$release_data" | grep "browser_download_url.*$asset_name" | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')"; then
         if [[ -n "$download_url" ]]; then
             log pass "Asset URL parsing works: $asset_name"
@@ -292,15 +280,15 @@ test_gwq_release_parsing() {
         ((test_failures++))
         return 1
     fi
-    
+
     return 0
 }
 
 test_repo_access() {
     log test "Testing copy-configs repository access"
-    
+
     local repo_url="https://github.com/gapurov/copy-configs"
-    
+
     if curl -fsSL --connect-timeout 10 "$repo_url" >/dev/null 2>&1; then
         log pass "copy-configs repository accessible"
         return 0
@@ -313,13 +301,13 @@ test_repo_access() {
 
 test_dry_run() {
     log test "Testing script dry run functionality"
-    
+
     # Create a test installation directory
     local test_bin_dir="$TEST_DIR/test-bin"
     local test_configs_dir="$TEST_DIR/test-configs"
-    
+
     mkdir -p "$test_bin_dir" "$test_configs_dir"
-    
+
     # Test that script can parse arguments without executing
     local script_output
     if script_output="$(echo "$test_configs_dir" | run_with_timeout 30 bash "$INSTALL_SCRIPT" --dry-run --verbose 2>&1)"; then
@@ -341,11 +329,11 @@ test_dry_run() {
 
 test_manual_instructions() {
     log test "Testing manual installation instructions"
-    
+
     # Create a test installation directory
     local test_configs_dir="$TEST_DIR/test-configs"
     mkdir -p "$test_configs_dir"
-    
+
     # Run dry run and capture output
     local script_output
     if script_output="$(echo "$test_configs_dir" | bash "$INSTALL_SCRIPT" --dry-run 2>&1)"; then
@@ -373,7 +361,7 @@ main() {
     log info "Starting installation script tests (version $SCRIPT_VERSION)"
     log info "Test directory: $TEST_DIR"
     echo
-    
+
     # Run all tests
     test_script_exists
     test_script_executable
@@ -385,7 +373,7 @@ main() {
     test_repo_access
     test_dry_run
     test_manual_instructions
-    
+
     echo
     if [[ $test_failures -eq 0 ]]; then
         log ok "All tests completed successfully!"
