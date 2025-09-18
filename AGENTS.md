@@ -3,16 +3,14 @@
 ## Project Structure & Module Organization
 
 - `copy-configs.sh` holds the primary sync logic invoked by `gwq addx`.
-- `install.sh` installs both `gwq` and this helper script; keep it portable across macOS, Linux, and WSL.
+- The README documents installation via git clone / curl one-liners; keep those snippets current across macOS, Linux, and WSL.
 - `gwqx` extends `gwq` with `addx`; review it when adjusting CLI UX.
-- `tests/` contains bash-based install harnesses (`unit-install.test.sh`, `integration-install.test.sh`).
 
 ## Build, Test, and Development Commands
 
 - `./copy-configs.sh --help` prints runtime options; run this after edits to confirm the flag surface.
-- `./install.sh` executes the installer end-to-end; use `./install.sh --dry-run` while iterating.
-- `bash tests/unit-install.test.sh` runs fast sanity checks against the installer in a temp dir.
-- `bash tests/integration-install.test.sh` exercises the installer path with downloaded assets; expect longer runtimes.
+- `gwqx addx --help` verifies CLI parsing without creating worktrees (fails fast on parsing issues).
+- Manually exercise `gwq addx` inside a throwaway git repo when changing copy logic.
 
 ## Coding Style & Naming Conventions
 
@@ -23,16 +21,15 @@
 
 ## Testing Guidelines
 
-- Author new tests as standalone bash scripts under `tests/`; mirror the naming pattern `<scope>-<subject>.test.sh`.
+- Add tests only as needed; prefer standalone bash scripts under `tests/` (create the directory if it does not exist).
 - Use temporary directories via `mktemp -d` and clean them in traps when possible.
 - Validate both success and failure paths by asserting exit codes (`if ! command; then ...`).
-- Run unit tests first, then integration before opening a pull request.
 
 ## Commit & Pull Request Guidelines
 
 - Follow Conventional Commits (`chore:`, `feat:`, `fix:`) as used in existing history (e.g., `chore: remove unnecessary comments`).
 - Scope titles to 70 characters; elaborate in the body with bullet lists when needed.
-- PRs should link related issues, note platform coverage (macOS/Linux/WSL), and include testing evidence (`bash tests/unit-install.test.sh`).
+- PRs should link related issues, note platform coverage (macOS/Linux/WSL), and include manual testing evidence (e.g., `gwqx addx --help`, dry-run walkthrough).
 
 ## Security & Configuration Tips
 
@@ -87,7 +84,7 @@
 ### Tips for Reliable Patterns
 
 - Patterns must be valid code for the target language; when in doubt, use object‑style rules (`kind`, `has`, `inside`, etc.).
-- Meta variables are ALL‑CAPS/underscore/digits; do not embed in other tokens (e.g., `use$HOOK` won’t work). Use `constraints.regex` instead.
+- Meta variables are ALL‑CAPS/underscore/digits; do not embed in other tokens. Use `constraints.regex` instead.
 - Use `$_` for non‑capturing wildcards and `$$$` for lists of nodes.
 - Use `--globs` to scope files; combine with `.gitignore` for noise‑free scans.
 - For complex rewrites, prefer YAML `fix` + `transform`/`rewriters` over a long `--rewrite` string.

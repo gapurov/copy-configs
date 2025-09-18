@@ -17,11 +17,27 @@ copy-configs solves this by automatically copying these files when creating new 
 
 ## Installation
 
+### 1. Install `gwq` (dependency)
+
 ```bash
-curl -fsSL https://raw.githubusercontent.com/gapurov/copy-configs/refs/heads/main/install.sh | bash
+mkdir -p ~/.local/share ~/.local/bin && git clone https://github.com/d-kuro/gwq.git ~/.local/share/gwq && (cd ~/.local/share/gwq && go build -o ~/.local/bin/gwq ./cmd/gwq)
 ```
 
-Installs gwq + copy-configs and adds `gwq addx` integration to your shell.
+This clones the upstream repository and builds the latest binary into `~/.local/bin/gwq` (adjust paths if you prefer a different location).citeturn7view0
+
+### 2. Install copy-configs helpers + alias
+
+```bash
+mkdir -p ~/.local/share && git clone https://github.com/gapurov/copy-configs.git ~/.local/share/copy-configs && alias gwq=~/.local/share/copy-configs/gwqx
+```
+
+Prefer curl only?
+
+```bash
+mkdir -p ~/.local/bin && curl -fsSL https://raw.githubusercontent.com/gapurov/copy-configs/main/gwqx -o ~/.local/bin/gwqx && curl -fsSL https://raw.githubusercontent.com/gapurov/copy-configs/main/copy-configs.sh -o ~/.local/bin/copy-configs.sh && chmod +x ~/.local/bin/gwqx ~/.local/bin/copy-configs.sh && alias gwq=~/.local/bin/gwqx
+```
+
+Append the alias (`alias gwq=...`) to your shell profile (e.g. `~/.bashrc`, `~/.zshrc`) so it persists across sessions. After setup, run `copy-configs.sh --help` to review available flags.
 
 ## Usage
 
