@@ -9,6 +9,8 @@
 
 set -euo pipefail
 
+readonly COPY_CONFIGS_VERSION="0.0.3"
+
 # ---------- constants ----------
 readonly REQUIRED_DEPS=(rsync)
 
@@ -157,6 +159,7 @@ OPTIONS:
   --debug               Enable debug output
   --dry-run, -n         Show what would be done without executing
   --help, -h            Show help
+  --version             Show version information
 
 EXAMPLES:
   # Via pipe
@@ -246,6 +249,8 @@ parse_arguments() {
         case "${1:-}" in
             -h|--help)
                 print_help; exit 0 ;;
+            --version)
+                print_version; exit 0 ;;
             -c|--config)
                 [[ $# -ge 2 ]] || { log error "Missing argument for $1"; exit 1; }
                 CFG_OVERRIDE="$2"; shift 2; continue ;;
@@ -274,6 +279,10 @@ parse_arguments() {
                 exit 1 ;;
         esac
     done
+}
+
+print_version() {
+    printf 'copy-configs %s\n' "${COPY_CONFIGS_VERSION}"
 }
 
 parse_arguments "$@"
