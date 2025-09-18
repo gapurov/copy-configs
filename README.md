@@ -23,7 +23,7 @@ copy-configs solves this by automatically copying these files when creating new 
 mkdir -p ~/.local/share ~/.local/bin && git clone https://github.com/d-kuro/gwq.git ~/.local/share/gwq && (cd ~/.local/share/gwq && go build -o ~/.local/bin/gwq ./cmd/gwq)
 ```
 
-This clones the upstream repository and builds the latest binary into `~/.local/bin/gwq` (adjust paths if you prefer a different location).citeturn7view0
+This clones the upstream repository and builds the latest binary into `~/.local/bin/gwq` (adjust paths if you prefer a different location).
 
 ### 2. Install copy-configs helpers + alias
 
@@ -55,6 +55,7 @@ gwq addx main               # From existing branch
 - `--conflict, -C MODE` - Handle conflicts: `skip`|`overwrite`|`backup` (default: skip)
 - `--verbose, -v` - Verbose output
 - `--dry-run, -n` - Preview without creating
+- `--version` - Print the installed gwqx and copy-configs versions
 
 All other `gwq add` options work the same.
 

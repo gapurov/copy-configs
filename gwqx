@@ -150,6 +150,7 @@ Copy-related OPTIONS (passed to copy-configs.sh):
   --verbose, -v         Enable verbose output
   --debug               Enable debug output
   --dry-run, -n         Show what would be done without executing
+  --version             Show gwqx and copy-configs versions
   --help, -h            Show help
 
 All other arguments are passed to 'gwq add'.
@@ -175,12 +176,25 @@ NOTES:
 EOF
 }
 
+print_versions() {
+    printf 'gwqx %s\n' "$SCRIPT_VERSION"
+
+    local copy_version
+    if copy_version=$("$COPY_CONFIGS_SCRIPT" --version 2>/dev/null); then
+        printf '%s\n' "$copy_version"
+    else
+        printf 'copy-configs unknown\n'
+    fi
+}
+
 # ---------- argument parsing ----------
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "${1:-}" in
             -h|--help)
                 print_help; exit 0 ;;
+            --version)
+                print_versions; exit 0 ;;
             # Copy-related arguments
             -c|--config|--conflict|-C|--copy-on-conflict)
                 COPY_ARGS+=("$1")
