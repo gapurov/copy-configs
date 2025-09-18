@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # copy-configs — Universal configuration file copying utility
-# Version: 0.0.2
+# Version: 0.0.3
 #
 # SUMMARY
 #   Copies an explicit set of local files/dirs (e.g., .env*, .cursor/, CLAUDE.md)
@@ -223,9 +223,17 @@ validate_path_safety() {
 validate_target_path() {
     local target_path="$1"
 
-    # Check if path exists and is a writable directory
-    if [[ ! -d "$target_path" || ! -w "$target_path" ]]; then
-        log error "Target path is not a writable directory: $target_path"
+    if [[ ! -d "$target_path" ]]; then
+        if mkdir -p "$target_path"; then
+            log info "Created target directory: $target_path"
+        else
+            log error "Failed to create target directory: $target_path"
+            return 1
+        fi
+    fi
+
+    if [[ ! -w "$target_path" ]]; then
+        log error "Target path is not writable: $target_path"
         return 1
     fi
 
@@ -394,24 +402,6 @@ parse_config_rule() {
 
 # ========== FILE OPERATIONS ==========
 
-handle_file_conflict() {
-    local dest="$1" wtree="$2"
-    local relative_dest="${dest#$wtree/}"
-
-    case "${CONFLICT_MODE}" in
-        skip)
-        log warn "keep (exists): $relative_dest"
-            return 1 ;;
-        backup)
-            local backup="${dest}.bak-$(date +%Y%m%d-%H%M%S)"
-            local relative_backup="${backup#$wtree/}"
-            log info "backup: $relative_dest -> $relative_backup"
-            mv "$dest" "$backup" ;;
-        overwrite)
-            return 0 ;;
-    esac
-}
-
 # ---------- file matching ----------
 find_matching_files() {
     local pattern="$1" source_dir="$2"
@@ -454,8 +444,6 @@ ensure_dest_dir() {
     mkdir -p "$(dirname "$dest_path")" 2>/dev/null || true
 }
 
-readonly RSYNC_BACKUP_SUFFIX=".bak-$(date +%Y%m%d-%H%M%S)"
-
 # Build rsync options based on flags and conflict mode
 build_rsync_args() {
     RSYNC_ARGS=("-a")
@@ -464,7 +452,8 @@ build_rsync_args() {
         skip)
             RSYNC_ARGS+=("--ignore-existing") ;;
         backup)
-            RSYNC_ARGS+=("--backup" "--suffix=$RSYNC_BACKUP_SUFFIX" "--checksum") ;;
+            local suffix=".bak-$(date +%Y%m%d-%H%M%S)-$RANDOM"
+            RSYNC_ARGS+=("--backup" "--suffix=$suffix" "--checksum") ;;
         overwrite)
             : ;;
     esac
@@ -598,24 +587,28 @@ process_config_file() {
 
 # ---------- main processing loop ----------
 process_targets() {
-    local target_path
+    local target_path raw_path
 
     for tp in "${TARGET_PATHS[@]}"; do
         [[ -z $tp ]] && continue
 
-        if [[ $tp == /* ]]; then
-            target_path="$tp"
+        raw_path="$tp"
+        [[ $raw_path == ~* ]] && raw_path="${raw_path/#~/$HOME}"
+        if [[ $raw_path == /* ]]; then
+            target_path="$raw_path"
         else
-            target_path="$(cd "$tp" 2>/dev/null && pwd)" || {
-                log warn "Invalid target path: $tp"
-                continue
-            }
+            target_path="$(pwd)/$raw_path"
         fi
 
         if ! validate_target_path "$target_path"; then
             log warn "Skipping invalid target: $target_path"
             continue
         fi
+
+        target_path="$(cd "$target_path" 2>/dev/null && pwd)" || {
+            log warn "Unable to resolve target path: $target_path"
+            continue
+        }
 
         log info "Copying files into: $target_path"
         copy_into_target "$target_path"
