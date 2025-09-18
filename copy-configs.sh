@@ -420,9 +420,8 @@ find_matching_files() {
     (
         cd "$source_dir" 2>/dev/null || exit 1
         shopt -s nullglob dotglob
-        for m in $pattern; do
-            printf '%s\n' "$m"
-        done
+        # Use compgen to expand globs without breaking on spaces; ignore no-match exit
+        compgen -G "$pattern" || true
     )
 }
 
